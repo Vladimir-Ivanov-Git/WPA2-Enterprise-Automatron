@@ -33,7 +33,7 @@ Optional arguments:
   -l LOG_DIR, --log-dir LOG_DIR
                         Set path to directory with logs (default: /var/log)
   -d DEAUTH_CHANNELS, --deauth-channels DEAUTH_CHANNELS
-                        Set channels for deauth channels
+                        Set channels for deauth
                         (default: 1,2,3,4,5,6,7,8,9,10,11,12)
   -s, --start           Start mdk3 and hostapd-wpe process
   -k, --karma           Set Karma mode for hostapd-wpe
